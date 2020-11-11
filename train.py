@@ -4,6 +4,10 @@ import pickle
 
 from model import NCF, create_tf_dataset
 
+review_record = pickle.load(open('data/Electronics.dat', 'rb'))
+schema = pickle.load(open('data/Electronics.schema', 'rb'))
+
+'''
 schema = {
 	'categorical': {
 		'rid': {},
@@ -18,7 +22,6 @@ schema = {
 	'target': 'rate'
 }
 
-review_record = pickle.load(open('data/Electronics.dat', 'rb'))
 
 for k, v in schema['categorical'].items():	
 	v['num_category'] = 0
@@ -27,7 +30,8 @@ for k, v in schema['categorical'].items():
 	v['num_category'] += 1
 	v['num_units'] = 16
 
-print(schema)
+pickle.dump(schema, open('data/Electronics.schema', 'wb'))
+'''
 
 hp = {
 	'num_layers': 1,
@@ -45,8 +49,11 @@ print('dataset created')
 iterator = x.make_one_shot_iterator()
 one_element = iterator.get_next()
 
-out = model.mlp(one_element, True)
+feature, out = model.mlp(one_element, True)
+variable_names = [v.name for v in tf.trainable_variables()]
+print(variable_names)
+
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
-	score = sess.run(out)
-	print(score)
+	f, score = sess.run([feature, out])
+	print(f)

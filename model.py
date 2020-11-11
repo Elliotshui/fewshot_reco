@@ -55,6 +55,7 @@ class NCF:
 		for k, v in self.schema['categorical'].items():
 			emb = tf.nn.embedding_lookup(self.embedding[k], x[k])
 			emb = tf.reshape(emb, [-1, v['num_units']])
+			feature_list.append(emb)
 		for k in self.schema['continuous']:
 			feature_list.append(tf.reshape(x[k], [-1, 1]))
 		feature = tf.concat(feature_list, axis = 1)
@@ -78,4 +79,4 @@ class NCF:
 			layer_output[i] = tf.nn.dropout(layer_output[i], keep_prob = prob)
 		
 		out = tf.nn.softmax(layer_output[-1])
-		return out
+		return feature, out
