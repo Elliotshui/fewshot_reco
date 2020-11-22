@@ -30,13 +30,16 @@ for k, v in schema['categorical'].items():
 	v['num_category'] += 1
 	v['num_units'] = 16
 
+print(schema)
 pickle.dump(schema, open('data/Electronics.schema', 'wb'))
 '''
 
 hp = {
 	'num_layers': 1,
 	'output_units': [1],
-	'keep_prob': 0.8
+	'keep_prob': 0.8,
+	'lambda' : 0.01,
+	'lr': 1e-4
 }
 
 model = NCF(schema, hp)
@@ -50,10 +53,11 @@ iterator = x.make_one_shot_iterator()
 one_element = iterator.get_next()
 
 feature, out = model.mlp(one_element, True)
-variable_names = [v.name for v in tf.trainable_variables()]
-print(variable_names)
+loss, update = model.train(one_element, out)
+print(tf.trainable_variables())
 
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
-	f, score = sess.run([feature, out])
-	print(f)
+	layer_loss = model.train_guided(one_element, out)
+	l = sess.run([layer_loss])
+	print(l)

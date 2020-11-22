@@ -15,7 +15,13 @@ def create_tf_dataset(data, schema, batch_size, num_repeat):
 		for i in range(0, num_sample):
 			ls = {}
 			for k, v in data.items():
-				ls[k] = v[i]
+				if k == 'rate':
+					if v[i] >= 4.0:
+						ls[k] = 1.0
+					else:
+						ls[k] = 0.0
+				else:
+					ls[k] = v[i]
 			yield ls
 
 	output_types = {}
@@ -35,6 +41,11 @@ def create_tf_dataset(data, schema, batch_size, num_repeat):
 	ds = ds.repeat(num_repeat)
 	return ds
 
+def get_var_by_name(name):
+	for v in tf.global_variables():
+		if v.name == name:
+			return v
+
 class NCF:	
 
 	def __init__(self, schema, hp):	
@@ -42,10 +53,8 @@ class NCF:
 		self.schema = schema
 		self.embedding = {}
 		for k, v in schema['categorical'].items():
-			self.embedding[k] = tf.get_variable(
-				dtype = tf.float32,
-				shape = (v['num_category'], v['num_units']),
-				initializer = tf.contrib.layers.xavier_initializer(),
+			self.embedding[k] = tf.Variable(
+				tf.zeros(shape = [v['num_category'], v['num_units']]),
 				name = k + '_embedding'
 			)
 		
@@ -67,16 +76,49 @@ class NCF:
 				input_v = feature
 			else:
 				input_v = layer_output[i - 1]
-			layer_output.append(tf.layers.dense(
+			lout = (tf.layers.dense(
 				inputs = input_v,
 				units = output_units,
 				activation = tf.nn.relu,
-				kernel_regularizer = tf.nn.l2_loss
+				name = 'dense_' + str(i),
 			))
 			prob = 1.0
 			if training == True:
 				prob = self.hp['keep_prob']
-			layer_output[i] = tf.nn.dropout(layer_output[i], keep_prob = prob)
+			layer_output.append(tf.nn.dropout(lout, keep_prob = prob))
 		
-		out = tf.nn.softmax(layer_output[-1])
+		out = tf.nn.sigmoid(layer_output[-1])
+		out = tf.reshape(out, [-1])
 		return feature, out
+	
+	def train(self, x, out):
+
+		loss_error = tf.reduce_mean(tf.square(x[self.schema['target']] - out), axis = 0)
+		reg_collection = [tf.nn.l2_loss(v) for v in tf.trainable_variables()]
+		loss_reg = tf.add_n(reg_collection)
+		loss = loss_error + self.hp['lambda'] * loss_reg
+
+		optimizer = tf.train.AdamOptimizer(
+			learning_rate = self.hp['lr']
+		)
+		update = optimizer.minimize(loss)
+		
+		return loss, update
+
+	def train_guided(self, x, out):
+
+		layer_ll = []
+
+		for i in range(0, self.hp['num_layers']):
+			kernel = get_var_by_name('dense_' + str(i) + '/kernel:0')
+			bias = get_var_by_name('dense_' + str(i) + '/bias:0')
+			kernel_o = tf.Variable(tf.zeros(1), trainable = False)
+			bias_o = tf.Variable(tf.zeros(1), trainable = False)
+			kernel_o = tf.assign(kernel_o, kernel, validate_shape = False)
+			bias_o = tf.assign(bias_o, bias, validate_shape = False)
+			layer_ll.append(tf.reduce_sum(tf.square(kernel_o - kernel)))
+			layer_ll.append(tf.reduce_sum(tf.square(bias_o - bias)))
+
+		layer_loss = tf.add_n(layer_ll)
+		
+		return layer_loss 
