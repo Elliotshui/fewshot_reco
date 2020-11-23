@@ -64,5 +64,7 @@ with tf.Session() as sess:
 	l = sess.run(layer_loss)
 	print(l)
 
+	'''
 	tb_writer = tf.summary.FileWriter(tb_dir + 'model')
 	tb_writer.add_graph(sess.graph)
+	'''
