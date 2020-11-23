@@ -57,6 +57,7 @@ class NCF:
 				tf.zeros(shape = [v['num_category'], v['num_units']]),
 				name = k + '_embedding'
 			)
+		self.mlp_variables = []
 		
 	def mlp(self, x, training=True):
 
@@ -82,6 +83,8 @@ class NCF:
 				activation = tf.nn.relu,
 				name = 'dense_' + str(i),
 			))
+			self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/kernel:0'))
+			self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/bias:0'))
 			prob = 1.0
 			if training == True:
 				prob = self.hp['keep_prob']
@@ -108,7 +111,14 @@ class NCF:
 	def train_guided(self, x, out):
 
 		layer_ll = []
+		for v in self.mlp_variables:
+			v_o = tf.Variable(tf.zeros(1), trainable = False)
+			v_o = tf.assign(v_o, v, validate_shape = False)
+			layer_ll.append(tf.reduce_sum(tf.square(v - v_o)))
+		layer_loss = tf.add_n(layer_ll)
+		return layer_loss
 
+		'''
 		for i in range(0, self.hp['num_layers']):
 			kernel = get_var_by_name('dense_' + str(i) + '/kernel:0')
 			bias = get_var_by_name('dense_' + str(i) + '/bias:0')
@@ -118,7 +128,7 @@ class NCF:
 			bias_o = tf.assign(bias_o, bias, validate_shape = False)
 			layer_ll.append(tf.reduce_sum(tf.square(kernel_o - kernel)))
 			layer_ll.append(tf.reduce_sum(tf.square(bias_o - bias)))
-
 		layer_loss = tf.add_n(layer_ll)
-		
+		'''
+
 		return layer_loss 

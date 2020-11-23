@@ -42,6 +42,8 @@ hp = {
 	'lr': 1e-4
 }
 
+tb_dir = './tensorboard/'
+
 model = NCF(schema, hp)
 
 BATCH_SIZE = 64
@@ -59,5 +61,8 @@ print(tf.trainable_variables())
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	layer_loss = model.train_guided(one_element, out)
-	l = sess.run([layer_loss])
+	l = sess.run(layer_loss)
 	print(l)
+
+	tb_writer = tf.summary.FileWriter(tb_dir + 'model')
+	tb_writer.add_graph(sess.graph)
