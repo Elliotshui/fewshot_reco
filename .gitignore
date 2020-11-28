@@ -2,3 +2,4 @@ data/json/*
 data/*.pickle
 data/*.dat
 data/*.schema
+data/*.stat

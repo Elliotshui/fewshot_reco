@@ -37,9 +37,11 @@ pickle.dump(schema, open('data/Electronics.schema', 'wb'))
 hp = {
 	'num_layers': 1,
 	'output_units': [1],
-	'keep_prob': 0.8,
-	'lambda' : 0.01,
-	'lr': 1e-4
+	'keep_prob': 0.8,		# keep probability for dropout layer
+	'reg_lambda' : 0.01,	# lambda for regularization term
+	'l_lambda': 0.1,		# lambda for layer loss
+	'lr': 1e-3,				# learning rate for normal training
+	'lr_tune': 1e-4			# learning rate for finetuning 
 }
 
 tb_dir = './tensorboard/'
@@ -54,15 +56,18 @@ print('dataset created')
 iterator = x.make_one_shot_iterator()
 one_element = iterator.get_next()
 
-feature, out = model.mlp(one_element, True)
+out = model.mlp(one_element, True)
+out1 = model.mlp(one_element, True)
+
 loss, update = model.train(one_element, out)
+loss_tune, update_tune = model.tune(one_element, out1)
+
 print(tf.trainable_variables())
 
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
-	layer_loss = model.train_guided(one_element, out)
-	l = sess.run(layer_loss)
-	print(l)
+	lt = sess.run(loss_tune)
+	print(lt)
 
 	'''
 	tb_writer = tf.summary.FileWriter(tb_dir + 'model')

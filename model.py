@@ -77,29 +77,44 @@ class NCF:
 				input_v = feature
 			else:
 				input_v = layer_output[i - 1]
-			lout = (tf.layers.dense(
-				inputs = input_v,
-				units = output_units,
-				activation = tf.nn.relu,
-				name = 'dense_' + str(i),
-			))
-			self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/kernel:0'))
-			self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/bias:0'))
+
+			if len(self.mlp_variables) == 0:
+				lout = tf.layers.dense(
+					inputs = input_v,
+					units = output_units,
+					activation = tf.nn.relu,
+					name = 'dense_' + str(i)
+				)
+				self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/kernel:0'))
+				self.mlp_variables.append(get_var_by_name('dense_' + str(i) + '/bias:0'))
+			else:
+				lout = tf.layers.dense(
+					inputs = input_v,
+					units = output_units,
+					activation = tf.nn.relu,
+					name = 'dense_' + str(i),
+					reuse = True
+				)
+
 			prob = 1.0
 			if training == True:
 				prob = self.hp['keep_prob']
-			layer_output.append(tf.nn.dropout(lout, keep_prob = prob))
+			
+			if i == self.hp['num_layers'] - 1:
+				layer_output.append(lout)
+			else:
+				layer_output.append(tf.nn.dropout(lout, keep_prob = prob))
 		
 		out = tf.nn.sigmoid(layer_output[-1])
 		out = tf.reshape(out, [-1])
-		return feature, out
+		return out
 	
 	def train(self, x, out):
 
 		loss_error = tf.reduce_mean(tf.square(x[self.schema['target']] - out), axis = 0)
-		reg_collection = [tf.nn.l2_loss(v) for v in tf.trainable_variables()]
+		reg_collection = [tf.nn.l2_loss(v) for v in self.mlp_variables]
 		loss_reg = tf.add_n(reg_collection)
-		loss = loss_error + self.hp['lambda'] * loss_reg
+		loss = loss_error + self.hp['reg_lambda'] * loss_reg
 
 		optimizer = tf.train.AdamOptimizer(
 			learning_rate = self.hp['lr']
@@ -108,7 +123,7 @@ class NCF:
 		
 		return loss, update
 
-	def train_guided(self, x, out):
+	def tune(self, x, out):
 
 		layer_ll = []
 		for v in self.mlp_variables:
@@ -116,7 +131,18 @@ class NCF:
 			v_o = tf.assign(v_o, v, validate_shape = False)
 			layer_ll.append(tf.reduce_sum(tf.square(v - v_o)))
 		layer_loss = tf.add_n(layer_ll)
-		return layer_loss
+
+		loss_error = tf.reduce_mean(tf.square(x[self.schema['target']] - out), axis = 0)
+		reg_collection = [tf.nn.l2_loss(v) for v in self.mlp_variables]
+		loss_reg = tf.add_n(reg_collection)
+		loss = loss_error + self.hp['reg_lambda'] * loss_reg + self.hp['l_lambda'] * layer_loss
+		
+		optimizer = tf.train.AdamOptimizer(
+			learning_rate = self.hp['lr_tune']
+		)
+		update = optimizer.minimize(loss, var_list = self.mlp_variables)
+		
+		return loss, update
 
 		'''
 		for i in range(0, self.hp['num_layers']):
